@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	UserRepository    *mocks.MockUserRepository
+	UserRepository *mocks.MockUserRepository
 )
 
 func NewMockRepository(ctrl *gomock.Controller) *repositories.Repository {
