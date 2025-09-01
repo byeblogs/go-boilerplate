@@ -1,0 +1,26 @@
+version: 2.1
+orbs:
+  codecov: codecov/codecov@4
+
+jobs:
+  build:
+    docker:
+      - image: cimg/go:1.21
+    steps:
+      - checkout
+      - run:
+          name: Run tests and collect coverage
+          command: go test ./... -coverprofile=coverage.out
+      - run:
+          name: Upload coverage to Codecov
+          command: |
+            curl -s https://codecov.io/bash | bash -s -- -f coverage.out -t $CODECOV_TOKEN  # Upload the coverage report to Codecov
+
+workflow:
+  version: 2.1
+  build-test:
+    jobs:
+      - build:
+        filters:
+          branches:
+            only: main
