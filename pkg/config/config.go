@@ -1,19 +1,38 @@
 package config
 
 import (
-	"github.com/joho/godotenv"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 )
 
-// LoadAllConfigs set various configs
+// LoadAllConfigs sets various configs.
+// In prod/docker, we read from real environment vars.
+// In local/dev, we try to load a .env file if present.
 func LoadAllConfigs(envFile string) {
+	if envFile == "" {
+		envFile = ".env"
+	}
 
-	err := godotenv.Load(envFile)
-	if err != nil {
-		log.Fatalf("can't load .env file. error: %v", err)
+	// Decide if we should load the .env file based on common env flags
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("ENV")))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("GO_ENV")))
+	}
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	}
+
+	// Only try to load .env for local/dev; ignore if missing
+	if env == "" || env == "local" || env == "dev" || env == "development" {
+		if err := godotenv.Load(envFile); err != nil {
+			// Not fatal — in containers/prod there is no .env file by design
+			log.Printf("can't load %s (continuing; using real env): %v", envFile, err)
+		}
 	}
 
 	LoadApp()
@@ -22,8 +41,6 @@ func LoadAllConfigs(envFile string) {
 
 // FiberConfig func for configuration Fiber app.
 func FiberConfig() fiber.Config {
-
-	// Return Fiber configuration.
 	return fiber.Config{
 		ReadTimeout: time.Second * time.Duration(AppCfg().ReadTimeout),
 	}
