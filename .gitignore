@@ -1,8 +1,15 @@
+# IDE files
+.vscode
+.DS_Store
+.idea
+
+# Dependencies
+vendor
+
+# Test
+*.out
+
+# Misc
 .env
-bin
-docker-compose.yml
-logs
-coverage
-coverage.out
-internal/mocks
-test_output.log
+build/
+tmp/

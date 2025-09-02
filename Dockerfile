@@ -1,45 +1,40 @@
-# Use the official Golang Alpine image to build the Go app
-FROM golang:1.24-alpine AS build
+FROM golang:1.16-alpine AS builder
 
-# Install Git and other dependencies
-RUN apk add --no-cache git
+# run the process as an unprivileged user.
+RUN mkdir /user && \
+    echo 'nobody:x:65534:65534:nobody:/:' > /user/passwd && \
+    echo 'nobody:x:65534:' > /user/group
 
-# Set the Current Working Directory inside the container
-WORKDIR /app
+#Install certs
+RUN apk add --no-cache ca-certificates
+
+# Working directory outside $GOPATH
+WORKDIR /build
+
+# Copy go module files and download dependencies
+COPY go.* ./
+RUN go mod download
+
+# Copy source files
 COPY . .
 
-# Download Go modules
-RUN go mod tidy -v
+# Build source
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o go-boilerplate .
 
-# Build the Go app
-RUN go build -o ./dist/rest ./internal/apps/rest
+# Minimal image for running the application
+FROM scratch as final
 
-# Start a new minimal runtime container
-FROM golang:1.24-alpine
+# Import the user and group files from the first stage.
+COPY --from=builder /user/group /user/passwd /etc/
+# Import the Certificate-Authority certificates for enabling HTTPS.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Import the compiled executable from the first stage.
+COPY --from=builder ["/build/go-boilerplate", "/build/.env", "/"]
 
-# Set the working directory inside the container
-WORKDIR /root
+# Open port
+EXPOSE 5000
 
-# Install tzdata for timezone support
-RUN apk add --no-cache tzdata
+# Will run as unprivileged user/group
+USER nobody:nobody
 
-# Set timezone to Asia/Jakarta
-ENV TZ=Asia/Jakarta
-RUN cp /usr/share/zoneinfo/Asia/Jakarta /etc/localtime && \
-    echo "Asia/Jakarta" > /etc/timezone
-
-# Copy the pre-built Go binary
-COPY --from=build /app/dist/rest .
-
-# Copy the .env file
-COPY .env .env
-
-# Set environment variables from the .env file
-ENV $(cat .env | xargs)
-
-# Expose port from .env using build-time ARG
-ARG PORT
-EXPOSE ${PORT}
-
-# Command to run the executable
-CMD ["./rest"]
+ENTRYPOINT ["/go-boilerplate"]
