@@ -1,4 +1,4 @@
-version: "3.5"
+version: "3.9"
 
 services:
   api:
@@ -6,23 +6,51 @@ services:
     build:
       context: .
       dockerfile: dev.Dockerfile
-    volumes: # needed for CompileDaemon to detect file changes
+    volumes:
       - ./:/app
-    depends_on:
-      - db
+    # Default: point to EXTERNAL DB (your explore-db on host:5433)
+    environment:
+      APP_HOST: ${APP_HOST:-0.0.0.0}
+      APP_PORT: ${APP_PORT:-9100}
+      APP_READ_TIMEOUT: ${APP_READ_TIMEOUT:-30}
+      APP_DEBUG: ${APP_DEBUG:-false}
+
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_SECRET_KEY_EXPIRE_MINUTES_COUNT: ${JWT_SECRET_KEY_EXPIRE_MINUTES_COUNT:-15}
+
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-5433}
+      DB_USER: ${DB_USER:-killabyss}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-explore_db}
+      DB_SSL_MODE: ${DB_SSL_MODE:-disable}
+      DB_DEBUG: ${DB_DEBUG:-true}
+      DB_MAX_OPEN_CONNECTIONS: ${DB_MAX_OPEN_CONNECTIONS:-3}
+      DB_MAX_IDLE_CONNECTIONS: ${DB_MAX_IDLE_CONNECTIONS:-1}
+      DB_MAX_LIFETIME_CONNECTIONS: ${DB_MAX_LIFETIME_CONNECTIONS:-10}
+
     ports:
-      - 5000:5000
+      - "${APP_PORT:-9100}:${APP_PORT:-9100}"
+    # NOTE: no depends_on by default; we use the external DB.
+    # If you enable the local DB profile, set DB_HOST=db (see notes below).
 
   db:
+    profiles: ["dev"]            # only runs when you ask for it
     container_name: fibergb-postgres
-    image: postgres:latest
-    #    command: ["postgres", "-c", "log_statement=all"]
-    ports:
-      - 5432:5432
+    image: postgres:15
     environment:
-      - POSTGRES_USER=dev
-      - POSTGRES_PASSWORD=dev
-      - POSTGRES_DB=fiber_go_api
+      # Map from your DB_* vars so you don't duplicate creds
+      POSTGRES_USER: ${DB_USER:-dev}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev}
+      POSTGRES_DB: ${DB_NAME:-fiber_go_api}
+    ports:
+      # default to 5434 to avoid clashing with yaahtze-postgres(5432) and explore-db(5433)
+      - "${PG_PORT_HOST:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - fibergbdata:/var/lib/postgresql/data
 
